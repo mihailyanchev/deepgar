@@ -90,8 +90,8 @@ def run(country: str, scheme: str, weighting: LossWeighting, seed: int) -> dict[
     lower = _percent(dist.quantile(0.05), scaler)
     upper = _percent(dist.quantile(0.95), scaler)
 
-    # CRPS as computed in notebook 02 (cell 24): the location is converted to
-    # percent, but the scale is only multiplied by the std, not by 100.
+    # CRPS of the predictive distribution in percent. The original notebooks
+    # omitted the *100 on the scale (see README); that value is kept for reference.
     std = np.float32(scaler["std"].iloc[0])
     loc_pct = _percent(m, scaler).astype(np.float32)
 
@@ -108,8 +108,8 @@ def run(country: str, scheme: str, weighting: LossWeighting, seed: int) -> dict[
         "weights_switched": switched,
         "RMSE": root_mean_squared_error(real_y, median),
         "MAE": mean_absolute_error(real_y, median),
-        "CRPS (as in paper)": crps(s * std),
-        "CRPS (corrected scale)": crps(s * std * 100),
+        "CRPS (original, mis-scaled)": crps(s * std),
+        "CRPS": crps(s * std * 100),
         "90% interval coverage": float(np.mean((real_y >= lower) & (real_y <= upper))),
     }
 
@@ -129,7 +129,7 @@ def main() -> None:
                 print(
                     f"{country:<10} {scheme:<21} seed={seed:<5} "
                     f"RMSE={row['RMSE']:.3f} MAE={row['MAE']:.3f} "
-                    f"CRPS={row['CRPS (as in paper)']:.3f} epochs={row['epochs_trained']}"
+                    f"CRPS={row['CRPS']:.3f} epochs={row['epochs_trained']}"
                 )
                 rows.append(row)
 
@@ -137,8 +137,8 @@ def main() -> None:
     metrics = [
         "RMSE",
         "MAE",
-        "CRPS (as in paper)",
-        "CRPS (corrected scale)",
+        "CRPS (original, mis-scaled)",
+        "CRPS",
         "90% interval coverage",
     ]
     summary = runs.groupby(["country", "scheme"], sort=False)[metrics].agg(["mean", "std"])
