@@ -1,5 +1,26 @@
-"""DeepGaR: LSTM quantile network with a SinhArcsinh density head."""
+"""DeepGaR: LSTM quantile network with a SinhArcsinh density head.
 
+Loss weighting
+--------------
+The model is trained on two losses: the tilted (quantile) loss and the
+least-squares loss that fits the SinhArcsinh distribution to the quantiles.
+
+The paper describes a dynamic scheme: weights of 0.95 / 0.05 for the first 90%
+of the training epochs, switching to 0.05 / 0.95 for the remainder. Due to a
+bug, the original code never applied it:
+
+* the weights were passed to ``compile(loss_weights=...)``, which Keras ignores
+  for losses registered through ``add_loss``; and
+* the callback rebound Python attributes instead of updating the Keras
+  variables, so the weights never switched either.
+
+The published results were therefore produced with an unweighted sum of the
+two losses (equal, 50/50 weighting) for all epochs. ``EQUAL_WEIGHTING`` is the
+default so the published results remain reproducible; ``PAPER_DYNAMIC_WEIGHTING``
+implements the scheme as described in the paper.
+"""
+
+from dataclasses import dataclass
 from typing import Any
 
 import tensorflow as tf
@@ -10,22 +31,84 @@ from tf_keras import layers
 from deepgar.losses import ls_quantile_cdf, multi_tilted_loss_v2
 
 
+@dataclass(frozen=True)
+class LossWeighting:
+    """Weights of the (tilted loss, distribution loss) pair during training.
+
+    The weights switch from ``initial`` to ``final`` at the end of the epoch
+    that passes ``switch_at`` of the total epochs. ``final=None`` keeps the
+    initial weights throughout.
+    """
+
+    initial: tuple[float, float]
+    final: tuple[float, float] | None = None
+    switch_at: float = 0.9
+
+
+# Used to produce the published results (see module docstring). Weights of 1.0
+# reproduce the original unweighted sum exactly; under Adam this is equivalent
+# to 0.5 / 0.5, since rescaling the loss by a constant leaves the updates unchanged.
+EQUAL_WEIGHTING = LossWeighting(initial=(1.0, 1.0))
+
+# The dynamic scheme described in the paper.
+PAPER_DYNAMIC_WEIGHTING = LossWeighting(initial=(0.95, 0.05), final=(0.05, 0.95), switch_at=0.9)
+
+
+class WeightedLossSum(layers.Layer):  # type: ignore[misc]
+    """Weighted sum of the tilted and distribution losses.
+
+    The weights are non-trainable layer weights, so they are read on every
+    training step and can be changed during training with ``K.set_value``.
+    (Multiplying by a ``K.variable`` directly in the functional API freezes its
+    value into the graph when the model is built.)
+    """
+
+    def __init__(self, initial: tuple[float, float], **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._initial = initial
+
+    def build(self, input_shape: Any) -> None:
+        self.alpha = self.add_weight(
+            name="tilted_loss_weight",
+            shape=(),
+            initializer=keras.initializers.Constant(self._initial[0]),
+            trainable=False,
+        )
+        self.beta = self.add_weight(
+            name="distribution_loss_weight",
+            shape=(),
+            initializer=keras.initializers.Constant(self._initial[1]),
+            trainable=False,
+        )
+
+    def call(self, inputs: list[tf.Tensor]) -> tf.Tensor:
+        # Per-sample losses are kept unreduced, as in the original implementation.
+        loss_q, loss_f = inputs
+        return self.alpha * loss_q + self.beta * loss_f
+
+
 class WeightsUpdater(keras.callbacks.Callback):  # type: ignore[misc]
     """Switch the loss weights near the end of training."""
 
-    def __init__(self, alpha: Any, beta: Any, epochs: int) -> None:
+    def __init__(self, alpha: Any, beta: Any, epochs: int, weighting: LossWeighting) -> None:
         super().__init__()
         self.alpha = alpha
         self.beta = beta
         self.total_epochs = epochs
-        self.coef = self.alpha / self.total_epochs
+        self.weighting = weighting
+        self.switched_at_epoch: int | None = None
 
     def on_epoch_end(self, epoch: int, logs: dict[str, Any] | None = None) -> None:
-        if epoch > (int(self.total_epochs * 0.9)):
-            self.alpha = 0.05
-            self.beta = 0.95
-
-        print("\nLoss_weights used:", K.get_value(self.alpha), K.get_value(self.beta))
+        final = self.weighting.final
+        if final is None or self.switched_at_epoch is not None:
+            return
+        if epoch > int(self.total_epochs * self.weighting.switch_at):
+            # Update the variables in place; rebinding the attributes (the
+            # original bug) leaves the weights used by the loss unchanged.
+            K.set_value(self.alpha, final[0])
+            K.set_value(self.beta, final[1])
+            self.switched_at_epoch = epoch
+            print(f"\nLoss weights switched to {final} after epoch {epoch + 1}")
 
 
 class QuantileLossModel:
@@ -43,14 +126,16 @@ class QuantileLossModel:
         self._1_lr = config["1_LEARNING_RATE"]
         self._pred_step = config["PRED_STEP"]
 
-    def create_deepgar_skew_v2(self) -> tuple[keras.Model, Any, Any]:
+    def create_deepgar_skew_v2(
+        self, weighting: LossWeighting = EQUAL_WEIGHTING, seed: int = 1234
+    ) -> tuple[keras.Model, Any, Any]:
         """Create and compile the model.
 
         Returns the model and the two loss-weight variables.
         """
         keras.backend.clear_session()
 
-        tf.random.set_seed(1234)
+        tf.random.set_seed(seed)
 
         data_input = keras.Input(shape=(None, self._num_features), name="data_input")
 
@@ -84,14 +169,14 @@ class QuantileLossModel:
 
         model = keras.Model(inputs=[data_input, y_real], outputs=[mu, sigma, skewness, tailweight])
 
-        model.add_loss([loss_q, loss_f])
+        # The weights must multiply the losses directly: `compile(loss_weights=...)`
+        # does not apply to losses added with `add_loss`.
+        weighted = WeightedLossSum(weighting.initial, name="weighted_loss")
+        model.add_loss(weighted([loss_q, loss_f]))
 
-        alpha = K.variable(0.95)
-        beta = K.variable(0.05)
+        model.compile(optimizer=keras.optimizers.Adam(self._1_lr))
 
-        model.compile(optimizer=keras.optimizers.Adam(self._1_lr), loss_weights=[alpha, beta])
-
-        return model, alpha, beta
+        return model, weighted.alpha, weighted.beta
 
 
 def train_tfp_model_norm2(
@@ -99,6 +184,7 @@ def train_tfp_model_norm2(
     data: dict[str, Any],
     epochs: int,
     callbacks: list[keras.callbacks.Callback],
+    verbose: int = 1,
 ) -> tuple[Any, Any, keras.callbacks.History, keras.Model]:
     """Fit the model and predict on the train and test sets."""
     history = model_1.fit(
@@ -106,23 +192,37 @@ def train_tfp_model_norm2(
         validation_data=[[data["X_TEST"], data["Y_TEST"]]],
         epochs=epochs,
         batch_size=data["BATCH_SIZE"],
-        verbose=1,
+        verbose=verbose,
         callbacks=callbacks,
     )
 
-    y_train_dist = model_1.predict([data["X_TRAIN"], data["Y_TRAIN"]])
-    y_test_dist = model_1.predict([data["X_TEST"], data["Y_TEST"]])
+    y_train_dist = model_1.predict([data["X_TRAIN"], data["Y_TRAIN"]], verbose=verbose)
+    y_test_dist = model_1.predict([data["X_TEST"], data["Y_TEST"]], verbose=verbose)
 
     return y_train_dist, y_test_dist, history, model_1
 
 
 def model_deepgar_skew_v2(
-    param: dict[str, Any], data: dict[str, Any], epochs: int, patience: int
+    param: dict[str, Any],
+    data: dict[str, Any],
+    epochs: int,
+    patience: int,
+    weighting: LossWeighting = EQUAL_WEIGHTING,
+    seed: int = 1234,
+    verbose: int = 1,
 ) -> tuple[Any, Any, keras.callbacks.History, keras.Model]:
-    """Build and train the DeepGaR model with early stopping."""
+    """Build and train the DeepGaR model with early stopping.
+
+    The default ``weighting`` reproduces the published results; see the module
+    docstring for why it differs from the scheme described in the paper.
+    """
     early_stopper = keras.callbacks.EarlyStopping(monitor="val_loss", patience=patience)
     model_creator_1 = QuantileLossModel(param)
-    model_1, alpha, beta = model_creator_1.create_deepgar_skew_v2()
+    model_1, alpha, beta = model_creator_1.create_deepgar_skew_v2(weighting, seed)
     return train_tfp_model_norm2(
-        model_1, data, epochs, [WeightsUpdater(alpha, beta, epochs), early_stopper]
+        model_1,
+        data,
+        epochs,
+        [WeightsUpdater(alpha, beta, epochs, weighting), early_stopper],
+        verbose=verbose,
     )

@@ -87,7 +87,7 @@ exclude = ["notebooks/*"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
@@ -97,6 +97,7 @@ module = [
     "tensorflow_probability.*",
     "tf_keras.*",
     "sklearn.*",
+    "properscoring.*",
 ]
 ignore_missing_imports = true
 

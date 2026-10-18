@@ -60,6 +60,18 @@ The models are trained and evaluated in the notebooks:
 | `03_deepgar_skew_explainability` | LIME explanations of the DeepGaR model |
 | `04_quantile_linear_benchmark` | Linear quantile regression benchmarks |
 
+## Note on the loss weighting
+
+The paper describes a dynamic weighting of the two DeepGaR losses: 95% on the tilted loss and 5% on the distribution loss for the first 90% of the training epochs, then 5% / 95% for the rest. A bug in the original code meant this scheme was never applied, so **the published results were produced with an equally weighted (50/50) sum of the two losses for all epochs**.
+
+`deepgar.models.deepgar_skew` now implements the weighting correctly. `EQUAL_WEIGHTING` is the default, so the published results stay reproducible. The scheme described in the paper is available as `PAPER_DYNAMIC_WEIGHTING`. To compare the two:
+
+```bash
+uv run python scripts/compare_loss_weighting.py
+```
+
+This writes `results/tables/loss_weighting_runs.csv` and `results/tables/loss_weighting_summary.csv`.
+
 ## Development
 
 ```bash
