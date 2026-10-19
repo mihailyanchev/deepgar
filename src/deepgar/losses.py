@@ -67,6 +67,12 @@ def multi_tilted_loss(quantiles: Sequence[float], y: tf.Tensor, f: tf.Tensor) ->
     return loss
 
 
+def tilted_loss(q: float, y: tf.Tensor, f: tf.Tensor) -> tf.Tensor:
+    """Tilted (pinball) loss for a single quantile ``q``."""
+    e = y - f
+    return K.mean(K.maximum(q * e, (q - 1) * e), axis=-1)
+
+
 def loglike_skew_cost(
     mu: tf.Tensor, sigma: tf.Tensor, skewness: tf.Tensor, y: tf.Tensor
 ) -> tf.Tensor:

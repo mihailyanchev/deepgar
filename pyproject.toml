@@ -11,8 +11,10 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pandas",
+    "properscoring",
     "scikit-learn",
     "scipy",
+    "sstudentt",
     "tensorflow",
     "tensorflow-probability",
     # Keras 2 for TF >= 2.16. Drop once the models are migrated to Keras 3.
@@ -30,15 +32,14 @@ dev = [
     "pre-commit",
     "pytest",
     "ruff",
+    "scipy-stubs",
 ]
 # Extra packages used only by the analysis notebooks.
 notebooks = [
     "ipykernel",
     "jupyterlab",
     "lime",
-    "properscoring",
     "pydot",
-    "sstudentt",
 ]
 
 [build-system]
@@ -98,6 +99,7 @@ module = [
     "tf_keras.*",
     "sklearn.*",
     "properscoring.*",
+    "sstudentt.*",
 ]
 ignore_missing_imports = true
 

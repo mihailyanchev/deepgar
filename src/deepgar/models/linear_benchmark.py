@@ -24,11 +24,11 @@ class QuantileLossModel:
         self._1_lr = config["1_LEARNING_RATE"]
         self._pred_step = config["PRED_STEP"]
 
-    def create_linear_model(self) -> keras.Model:
+    def create_linear_model(self, seed: int = 1234) -> keras.Model:
         """Create and compile one linear output per quantile."""
         keras.backend.clear_session()
 
-        tf.random.set_seed(1234)
+        tf.random.set_seed(seed)
 
         data_input = keras.Input(shape=(None, self._num_features), name="data_input")
 
@@ -53,7 +53,7 @@ class QuantileLossModel:
 
 
 def train_1step_model(
-    model_1: keras.Model, data: dict[str, Any], epochs: int
+    model_1: keras.Model, data: dict[str, Any], epochs: int, verbose: int = 2
 ) -> tuple[Any, Any, keras.callbacks.History, keras.Model]:
     """Fit the model and predict on the train and test sets."""
     history = model_1.fit(
@@ -62,19 +62,23 @@ def train_1step_model(
         validation_data=(data["X_TEST"], data["Y_TESTK"]),
         epochs=epochs,
         batch_size=data["BATCH_SIZE"],
-        verbose=2,
+        verbose=verbose,
     )
 
-    y_train_dist = model_1.predict(data["X_TRAIN"])
-    y_test_dist = model_1.predict(data["X_TEST"])
+    y_train_dist = model_1.predict(data["X_TRAIN"], verbose=verbose)
+    y_test_dist = model_1.predict(data["X_TEST"], verbose=verbose)
 
     return y_train_dist, y_test_dist, history, model_1
 
 
 def model_linear(
-    param: dict[str, Any], data: dict[str, Any], epochs: int
+    param: dict[str, Any],
+    data: dict[str, Any],
+    epochs: int,
+    seed: int = 1234,
+    verbose: int = 2,
 ) -> tuple[Any, Any, keras.callbacks.History, keras.Model]:
     """Build and train the linear quantile benchmark."""
     model_creator_1 = QuantileLossModel(param)
-    model_1 = model_creator_1.create_linear_model()
-    return train_1step_model(model_1, data, epochs)
+    model_1 = model_creator_1.create_linear_model(seed)
+    return train_1step_model(model_1, data, epochs, verbose=verbose)

@@ -41,6 +41,8 @@ uv run python -m ipykernel install --sys-prefix --name deepgar --display-name "P
 uv run jupyter lab
 ```
 
+The model-diagram cells (`plot_model`) also need the Graphviz system package, e.g. `brew install graphviz` on macOS.
+
 ## Usage
 
 Rebuild the per-country datasets from `data/interim`:
@@ -62,7 +64,7 @@ The models are trained and evaluated in the notebooks:
 
 ## Errata
 
-Several bugs in the original analysis code were found and fixed in 2026. The committed result tables in `results/tables/` (other than `loss_weighting_*`) and figures in `results/figures/` are the **original outputs and are left unchanged**. The notes below describe how they are affected.
+Several bugs in the original analysis code were found and fixed in 2026. The committed result tables in `results/tables/` (other than `loss_weighting_*` and `model_comparison_*`, which were produced with the fixed code) and figures in `results/figures/` are the **original outputs and are left unchanged**. The notes below describe how they are affected.
 
 ### 1. Loss weighting was never applied
 
@@ -91,12 +93,56 @@ The notebooks now compute all of these in percent. Recession is defined as q-o-q
 
 RMSE, MAE, the 5%/95% quantiles, the IQR and the quantile bands in the figures were computed correctly and are **not** affected.
 
-With the fixes, DeepGaR still has a lower CRPS than AR(1) in single-run checks (Bulgaria 0.80 vs 1.11, Romania 0.87 vs 1.24). Recomputing the full table for all countries and models is pending.
-
 ### 3. Other fixes
 
 - **AR(1) predictive spread:** the residual standard deviation was computed as input minus forecast instead of target minus forecast. This affects the AR(1) CRPS.
-- **Linear non-simultaneous benchmark:** the 5% and 95% quantiles were swapped, so the ".95 quantile" was the 5% quantile and vice versa.
+- **Linear non-simultaneous benchmark:**
+  - The 5% and 95% quantiles were swapped, so the ".95 quantile" was the 5% quantile and vice versa.
+  - Its CRPS used the location of the *simultaneous* benchmark's distributions, because the location was recomputed only after the CRPS cell.
+- **Point forecasts:** RMSE now uses the median forecast for every model, like MAE. Previously the linear non-simultaneous benchmark (and DeepGaR in notebook 03) used the distribution's mean for RMSE and the median for MAE.
+
+### 4. Corrected model comparison
+
+The comparison table was recomputed with all of the fixes above, for all four countries and models:
+
+```bash
+uv run python scripts/recompute_comparison.py
+```
+
+Each model was trained with 10 seeds (1234 and 1–9), using the paper's setup and the published equal loss weighting for DeepGaR. The script writes `results/tables/model_comparison_runs.csv` (one row per run) and `results/tables/model_comparison_summary.csv`.
+
+The table shows published values (single runs, from `dqpr_ar1_summary.xlsx`) and corrected values (mean ± standard deviation over the 10 seeds). All metrics are in percentage points of quarter-on-quarter GDP growth, and lower is better. The best corrected value per country is in bold.
+
+| Country | Model | RMSE published | RMSE corrected | MAE published | MAE corrected | CRPS published | CRPS corrected |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Bulgaria | DeepGaR | 1.70 | **1.52 ± 0.05** | 0.88 | **0.95 ± 0.05** | 1.07 | **0.84 ± 0.03** |
+|  | AR(1) | 2.39 | 2.31 ± 0.07 | 1.22 | 1.18 ± 0.03 | 1.21 | 1.06 ± 0.04 |
+|  | Linear simultaneous QR | 2.68 | 2.45 ± 0.43 | 1.36 | 1.33 ± 0.17 | 1.79 | 1.13 ± 0.20 |
+|  | Linear non-simultaneous QR | 2.05 | 2.39 ± 0.38 | 1.79 | 1.32 ± 0.15 | 1.63 | 1.09 ± 0.16 |
+| Estonia | DeepGaR | 1.64 | **1.30 ± 0.04** | 0.81 | **0.83 ± 0.02** | 1.02 | **0.69 ± 0.02** |
+|  | AR(1) | 1.92 | 1.89 ± 0.03 | 1.11 | 1.13 ± 0.02 | 1.10 | 0.97 ± 0.02 |
+|  | Linear simultaneous QR | 2.35 | 1.99 ± 0.51 | 1.53 | 1.17 ± 0.20 | 1.66 | 0.94 ± 0.20 |
+|  | Linear non-simultaneous QR | 1.60 | 1.91 ± 0.50 | 1.02 | 1.13 ± 0.23 | 1.36 | 0.88 ± 0.19 |
+| Lithuania | DeepGaR | 1.62 | **1.16 ± 0.04** | 0.50 | **0.63 ± 0.05** | 0.76 | **0.59 ± 0.03** |
+|  | AR(1) | 2.23 | 2.10 ± 0.20 | 1.04 | 0.96 ± 0.11 | 1.03 | 1.01 ± 0.07 |
+|  | Linear simultaneous QR | 2.07 | 2.23 ± 0.51 | 0.97 | 1.23 ± 0.25 | 0.91 | 1.00 ± 0.20 |
+|  | Linear non-simultaneous QR | 1.52 | 1.89 ± 0.23 | 0.76 | 1.05 ± 0.12 | 0.91 | 0.86 ± 0.12 |
+| Romania | DeepGaR | 2.07 | **1.72 ± 0.09** | 1.03 | **1.02 ± 0.03** | 1.06 | **0.82 ± 0.03** |
+|  | AR(1) | 2.99 | 2.93 ± 0.06 | 1.42 | 1.40 ± 0.02 | 1.41 | 1.22 ± 0.02 |
+|  | Linear simultaneous QR | 2.65 | 2.61 ± 0.55 | 1.39 | 1.32 ± 0.21 | 1.67 | 1.09 ± 0.20 |
+|  | Linear non-simultaneous QR | 1.85 | 2.36 ± 0.50 | 1.12 | 1.21 ± 0.18 | 1.32 | 0.99 ± 0.14 |
+
+**Findings**
+
+- **DeepGaR is the best model on RMSE, MAE and CRPS in all four countries.** On CRPS it beats each benchmark in 8–10 of the 10 seeds (paired Wilcoxon tests, which compare models seed by seed: p ≤ 0.02 for every country and benchmark).
+- **DeepGaR's advantage is clearer than published.** In the published RMSE, the linear non-simultaneous benchmark beat DeepGaR in Estonia, Lithuania and Romania. Over 10 seeds it does not. The linear benchmarks vary a lot between seeds (RMSE ± 0.23–0.55), so the published single runs were favourable draws; switching RMSE from the mean to the median forecast also contributes. These effects cannot be separated.
+- **CRPS values are lower for every model** once the predictive spread is in the right units. DeepGaR's margin over the benchmarks is larger than published.
+- **DeepGaR's 90% intervals are too narrow in some countries.** They cover 69% of outcomes in Bulgaria and 81–84% in Lithuania and Romania (95% in Estonia); see the `90% interval coverage` column in the summary file. On a test set of only 18–21 quarters dominated by the 2020 shock, this should be read with caution.
+
+**Caveats**
+
+- **Not a pure before/after comparison.** Corrected and published values also differ in library versions (TensorFlow 2.21 vs 2.7–2.9) and in the number of runs, so differences cannot be attributed to the bug fixes alone.
+- **Some SST fits are invalid.** The SST fitting procedure (unchanged from the paper) returns invalid parameters for 58 of the 1,560 benchmark quarter-forecasts (3.7%), all in the two linear benchmarks. These are counted in the `invalid_sst_fits` column.
 
 ## Development
 

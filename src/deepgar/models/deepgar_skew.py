@@ -23,12 +23,16 @@ implements the scheme as described in the paper.
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import tf_keras as keras
 from tf_keras import backend as K
 from tf_keras import layers
 
+from deepgar.evaluation import Forecast, scale_to_percent, to_percent
 from deepgar.losses import ls_quantile_cdf, multi_tilted_loss_v2
+from deepgar.sampling import Scaler
 
 
 @dataclass(frozen=True)
@@ -225,4 +229,32 @@ def model_deepgar_skew_v2(
         epochs,
         [WeightsUpdater(alpha, beta, epochs, weighting), early_stopper],
         verbose=verbose,
+    )
+
+
+def forecast(
+    model: keras.Model,
+    data: dict[str, Any],
+    scaler: Scaler,
+    n_samples: int = 200,
+    seed: int | None = None,
+) -> Forecast:
+    """Predictive SinhArcsinh distribution for the test quarters, in percent."""
+    m, s, a, t = (
+        np.squeeze(np.asarray(v)).astype(np.float32)
+        for v in model([data["X_TEST"], data["Y_TEST"]])
+    )
+    # SinhArcsinh is a location-scale family, so converting location and scale
+    # converts the whole distribution to percent.
+    dist = tfp.distributions.SinhArcsinh(
+        loc=to_percent(m, scaler).astype(np.float32),
+        scale=scale_to_percent(s, scaler).astype(np.float32),
+        skewness=a,
+        tailweight=t,
+    )
+    return Forecast(
+        median=np.asarray(dist.quantile(0.5), dtype=np.float64),
+        lower=np.asarray(dist.quantile(0.05), dtype=np.float64),
+        upper=np.asarray(dist.quantile(0.95), dtype=np.float64),
+        samples=np.asarray(dist.sample(n_samples, seed=seed), dtype=np.float64),
     )
