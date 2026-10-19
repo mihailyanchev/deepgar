@@ -1,6 +1,6 @@
 # deepgar
 
-Model repository for the DeepGaR model used in the paper: *Deep Growth-at-Risk Model: Nowcasting the 2020 Pandemic Lockdown Recession in Small Open Economies*.
+Model repository for the DeepGaR model used in the paper [*Deep Growth-at-Risk Model: Nowcasting the 2020 Pandemic Lockdown Recession in Small Open Economies*](https://www.iki.bas.bg/Journals/EconomicStudies/2022/2022-7/02_Mihail-Yanchev.pdf), *Economic Studies (Ikonomicheski Izsledvania)* 31(7), 2022, pp. 20–41. See [Citation](#citation) for how to cite it, and [Errata](#errata) for corrections to the original analysis.
 
 ## Repository layout
 
@@ -157,3 +157,24 @@ uv run pytest                # tests
 The same checks run in CI on every push and pull request.
 
 > **Note:** the models still use Keras 2 through the `tf-keras` package. Migrating to Keras 3 is planned.
+
+## Citation
+
+If you use this code, please cite the paper:
+
+> Yanchev, M. (2022). Deep Growth-at-Risk Model: Nowcasting the 2020 Pandemic Lockdown Recession in Small Open Economies. *Economic Studies (Икономически изследвания)*, 31(7), 20–41.
+
+```bibtex
+@article{yanchev2022deepgar,
+  author  = {Yanchev, Mihail},
+  title   = {Deep Growth-at-Risk Model: Nowcasting the 2020 Pandemic Lockdown Recession in Small Open Economies},
+  journal = {Economic Studies (Ikonomicheski Izsledvania)},
+  volume  = {31},
+  number  = {7},
+  pages   = {20--41},
+  year    = {2022},
+  url     = {https://www.iki.bas.bg/Journals/EconomicStudies/2022/2022-7/02_Mihail-Yanchev.pdf}
+}
+```
+
+The full text is available from the [journal](https://www.iki.bas.bg/Journals/EconomicStudies/2022/2022-7/02_Mihail-Yanchev.pdf) and is indexed on [RePEc/IDEAS](https://ideas.repec.org/a/bas/econst/y2022i7p20-41.html). The same citation is in [`CITATION.cff`](CITATION.cff), which GitHub uses for its "Cite this repository" button.
