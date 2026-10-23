@@ -1,0 +1,118 @@
+[project]
+name = "deepgar"
+version = "0.2.0"
+description = "Deep Growth-at-Risk model: nowcasting the 2020 pandemic lockdown recession in small open economies"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Mihail Yanchev" }]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "properscoring",
+    "scikit-learn",
+    "scipy",
+    "sstudentt",
+    "tensorflow",
+    "tensorflow-probability",
+    # Keras 2 for TF >= 2.16. Drop once the models are migrated to Keras 3.
+    "tf-keras",
+]
+
+[project.scripts]
+deepgar-preprocess = "deepgar.preprocessing:main"
+
+[dependency-groups]
+dev = [
+    "bandit[toml]",
+    "mypy",
+    "pandas-stubs",
+    "pre-commit",
+    "pytest",
+    "ruff",
+    "scipy-stubs",
+]
+# Extra packages used only by the analysis notebooks.
+notebooks = [
+    "ipykernel",
+    "jupyterlab",
+    "lime",
+    "pydot",
+]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv]
+default-groups = ["dev", "notebooks"]
+
+# --------------------------------------------------------------------------- ruff
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # flake8-bugbear
+    "UP",       # pyupgrade
+    "SIM",      # flake8-simplify
+    "C4",       # flake8-comprehensions
+    "NPY",      # numpy-specific rules
+    "PD",       # pandas-vet
+    "PTH",      # use pathlib
+    "RUF",      # ruff-specific rules
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Exploratory research notebooks: only flag real errors (e.g. undefined names), not style.
+"notebooks/*.ipynb" = [
+    "E402", "E501", "E703", "E731", "E741", "W",
+    "F401", "F541", "F811", "F841",
+    "B", "C4", "I", "NPY", "PD", "PTH", "RUF", "SIM", "UP",
+]
+
+[tool.ruff.format]
+# Keep the notebooks' original formatting.
+exclude = ["notebooks/*"]
+
+# --------------------------------------------------------------------------- mypy
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests", "scripts"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+# These libraries ship no type information.
+module = [
+    "tensorflow.*",
+    "tensorflow_probability.*",
+    "tf_keras.*",
+    "sklearn.*",
+    "properscoring.*",
+    "sstudentt.*",
+]
+ignore_missing_imports = true
+
+# --------------------------------------------------------------------------- bandit
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+
+# --------------------------------------------------------------------------- pytest
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+filterwarnings = [
+    "ignore:distutils Version classes are deprecated:DeprecationWarning:tensorflow_probability",
+]

@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the paper below."
+title: "deepgar: Deep Growth-at-Risk model"
+type: software
+authors:
+  - family-names: Yanchev
+    given-names: Mihail
+repository-code: "https://github.com/mihailyanchev/deepgar"
+license: MIT
+keywords:
+  - forecasting
+  - macroeconomic risks
+  - artificial neural networks
+  - density forecasts
+  - recessions
+  - growth-at-risk
+preferred-citation:
+  type: article
+  title: "Deep Growth-at-Risk Model: Nowcasting the 2020 Pandemic Lockdown Recession in Small Open Economies"
+  authors:
+    - family-names: Yanchev
+      given-names: Mihail
+  journal: "Economic Studies (Ikonomicheski Izsledvania)"
+  volume: 31
+  issue: 7
+  start: 20
+  end: 41
+  year: 2022
+  url: "https://www.iki.bas.bg/Journals/EconomicStudies/2022/2022-7/02_Mihail-Yanchev.pdf"
+  keywords:
+    - Forecasting
+    - Macroeconomic Risks
+    - Artificial Neural Networks
+    - Density Forecasts
+    - Recessions
