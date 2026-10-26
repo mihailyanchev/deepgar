@@ -12,8 +12,10 @@ Model repository for the DeepGaR model used in the paper [*Deep Growth-at-Risk M
 │   ├── losses.py           # tilted quantile loss and distribution losses
 │   ├── plotting.py         # training and distribution charts
 │   └── models/
-│       ├── deepgar_skew.py      # DeepGaR model (LSTM + SinhArcsinh density)
-│       └── linear_benchmark.py  # linear quantile regression benchmark
+│       ├── deepgar_skew.py        # DeepGaR model (LSTM + SinhArcsinh density)
+│       ├── deepgar_skew_torch.py  # PyTorch port of the DeepGaR model
+│       ├── weighting.py           # loss-weighting schemes shared by both
+│       └── linear_benchmark.py    # linear quantile regression benchmark
 ├── notebooks/              # analysis notebooks that produce the paper's results
 ├── data/
 │   ├── raw/                # original downloads (Eurostat, market data)
@@ -70,7 +72,7 @@ Several bugs in the original analysis code were found and fixed in 2026. The com
 
 The paper describes a dynamic weighting of the two DeepGaR losses: 95% on the tilted loss and 5% on the distribution loss for the first 90% of the training epochs, then 5% / 95% for the rest. A bug in the original code meant this scheme was never applied, so **the published results were produced with an equally weighted (50/50) sum of the two losses for all epochs**.
 
-`deepgar.models.deepgar_skew` now implements the weighting correctly. `EQUAL_WEIGHTING` is the default, so the published results stay reproducible. The scheme described in the paper is available as `PAPER_DYNAMIC_WEIGHTING`. To compare the two:
+`deepgar.models.deepgar_skew` now implements the weighting correctly (the schemes are defined in `deepgar.models.weighting`). `EQUAL_WEIGHTING` is the default, so the published results stay reproducible. The scheme described in the paper is available as `PAPER_DYNAMIC_WEIGHTING`. To compare the two:
 
 ```bash
 uv run python scripts/compare_loss_weighting.py
@@ -143,6 +145,38 @@ The table shows published values (single runs, from `dqpr_ar1_summary.xlsx`) and
 
 - **Not a pure before/after comparison.** Corrected and published values also differ in library versions (TensorFlow 2.21 vs 2.7–2.9) and in the number of runs, so differences cannot be attributed to the bug fixes alone.
 - **Some SST fits are invalid.** The SST fitting procedure (unchanged from the paper) returns invalid parameters for 58 of the 1,560 benchmark quarter-forecasts (3.7%), all in the two linear benchmarks. These are counted in the `invalid_sst_fits` column.
+
+## PyTorch port
+
+`deepgar.models.deepgar_skew_torch` is a PyTorch version of DeepGaR. It has the same interface as the TensorFlow model, so it can be used in its place:
+
+```python
+from deepgar.experiment import DEEPGAR_EPOCHS, DEEPGAR_PATIENCE, load_sample
+from deepgar.models import deepgar_skew_torch
+
+data, scaler, param = load_sample("Bulgaria")
+*_, history, model = deepgar_skew_torch.model_deepgar_skew(
+    param, data, DEEPGAR_EPOCHS["Bulgaria"], DEEPGAR_PATIENCE
+)
+forecast = deepgar_skew_torch.forecast(model, data, scaler)
+```
+
+Given the same weights, the two models predict the same distributions, compute the same loss and take the same training steps (`tests/test_deepgar_torch.py`). This includes two details of how Keras trains the original model that matter because DeepGaR's gradients are small (about 1e-7 to 1e-4): Keras steps on the sum of the per-sample loss over the batch, and it adds Adam's epsilon before the bias correction.
+
+The port uses PyTorch's default weight initialisation, not Keras's (Glorot-uniform weights and zero biases). With small gradients and short training, the weights stay close to where they started, so this makes the port less accurate than the TensorFlow model. Over the same 10 seeds (mean ± standard deviation):
+
+```bash
+uv run python scripts/compare_torch_port.py
+```
+
+| Country | RMSE TensorFlow | RMSE PyTorch | MAE TensorFlow | MAE PyTorch | CRPS TensorFlow | CRPS PyTorch |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Bulgaria | 1.52 ± 0.05 | 1.86 ± 0.10 | 0.95 ± 0.05 | 1.11 ± 0.04 | 0.84 ± 0.03 | 0.95 ± 0.03 |
+| Estonia | 1.30 ± 0.04 | 1.35 ± 0.05 | 0.83 ± 0.02 | 0.91 ± 0.03 | 0.69 ± 0.02 | 0.68 ± 0.02 |
+| Lithuania | 1.16 ± 0.04 | 1.32 ± 0.08 | 0.63 ± 0.05 | 0.70 ± 0.03 | 0.59 ± 0.03 | 0.59 ± 0.03 |
+| Romania | 1.72 ± 0.09 | 2.11 ± 0.05 | 1.02 ± 0.03 | 1.12 ± 0.02 | 0.82 ± 0.03 | 0.92 ± 0.02 |
+
+The gap is largest for point forecasts in Bulgaria and Romania. CRPS is about the same in Estonia and Lithuania. On these means, the port still beats every benchmark in [the comparison above](#4-corrected-model-comparison) on RMSE, MAE and CRPS. In a separate test, starting the port from Keras-initialised weights brought all four countries within seed noise of the TensorFlow results (mean RMSE within 0.03 of TensorFlow in every country). The script writes `results/tables/torch_port_runs.csv` and `results/tables/torch_port_summary.csv`.
 
 ## Development
 

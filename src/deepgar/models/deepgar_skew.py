@@ -17,10 +17,10 @@ bug, the original code never applied it:
 The published results were therefore produced with an unweighted sum of the
 two losses (equal, 50/50 weighting) for all epochs. ``EQUAL_WEIGHTING`` is the
 default so the published results remain reproducible; ``PAPER_DYNAMIC_WEIGHTING``
-implements the scheme as described in the paper.
+implements the scheme as described in the paper. Both are defined in
+``deepgar.models.weighting``.
 """
 
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -32,30 +32,8 @@ from tf_keras import layers
 
 from deepgar.evaluation import Forecast, scale_to_percent, to_percent
 from deepgar.losses import ls_quantile_cdf, multi_tilted_loss_shared_target
+from deepgar.models.weighting import EQUAL_WEIGHTING, LossWeighting
 from deepgar.sampling import Scaler
-
-
-@dataclass(frozen=True)
-class LossWeighting:
-    """Weights of the (tilted loss, distribution loss) pair during training.
-
-    The weights switch from ``initial`` to ``final`` at the end of the epoch
-    that passes ``switch_at`` of the total epochs. ``final=None`` keeps the
-    initial weights throughout.
-    """
-
-    initial: tuple[float, float]
-    final: tuple[float, float] | None = None
-    switch_at: float = 0.9
-
-
-# Used to produce the published results (see module docstring). Weights of 1.0
-# reproduce the original unweighted sum exactly; under Adam this is equivalent
-# to 0.5 / 0.5, since rescaling the loss by a constant leaves the updates unchanged.
-EQUAL_WEIGHTING = LossWeighting(initial=(1.0, 1.0))
-
-# The dynamic scheme described in the paper.
-PAPER_DYNAMIC_WEIGHTING = LossWeighting(initial=(0.95, 0.05), final=(0.05, 0.95), switch_at=0.9)
 
 
 class WeightedLossSum(layers.Layer):  # type: ignore[misc]
@@ -106,7 +84,7 @@ class WeightsUpdater(keras.callbacks.Callback):  # type: ignore[misc]
         final = self.weighting.final
         if final is None or self.switched_at_epoch is not None:
             return
-        if epoch > int(self.total_epochs * self.weighting.switch_at):
+        if self.weighting.switches_after(epoch, self.total_epochs):
             # Update the variables in place; rebinding the attributes (the
             # original bug) leaves the weights used by the loss unchanged.
             K.set_value(self.alpha, final[0])
