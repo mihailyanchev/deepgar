@@ -15,14 +15,8 @@ class QuantileLossModel:
     def __init__(self, config: dict[str, Any]) -> None:
         self._num_features = config["NUM_FEATURES"]
         self._quantiles = config["QUANTILES"]
-        self._1_common_lstm_layer_num = config["1_COMMON_LSTM_NUM"]
-        self._2_common_lstm_layer_num = config["2_COMMON_LSTM_NUM"]
-        self._1_ind_lstm_layer_num = config["1_IND_LSTM_NUM"]
-        self._1_ind_dense_num = config["1_IND_DENSE_NUM"]
-        self._1_ind_dense_activation = config["1_IND_DENSE_ACTIVATION"]
         self._1_out_dense_activation = config["1_OUT_DENSE_ACTIVATION"]
         self._1_lr = config["1_LEARNING_RATE"]
-        self._pred_step = config["PRED_STEP"]
 
     def create_linear_model(self, seed: int = 1234) -> keras.Model:
         """Create and compile one linear output per quantile."""

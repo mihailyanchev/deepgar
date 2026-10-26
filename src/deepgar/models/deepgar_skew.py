@@ -31,7 +31,7 @@ from tf_keras import backend as K
 from tf_keras import layers
 
 from deepgar.evaluation import Forecast, scale_to_percent, to_percent
-from deepgar.losses import ls_quantile_cdf, multi_tilted_loss_v2
+from deepgar.losses import ls_quantile_cdf, multi_tilted_loss_shared_target
 from deepgar.sampling import Scaler
 
 
@@ -122,15 +122,13 @@ class QuantileLossModel:
         self._num_features = config["NUM_FEATURES"]
         self._quantiles = config["QUANTILES"]
         self._1_common_lstm_layer_num = config["1_COMMON_LSTM_NUM"]
-        self._2_common_lstm_layer_num = config["2_COMMON_LSTM_NUM"]
         self._1_ind_lstm_layer_num = config["1_IND_LSTM_NUM"]
         self._1_ind_dense_num = config["1_IND_DENSE_NUM"]
         self._1_ind_dense_activation = config["1_IND_DENSE_ACTIVATION"]
         self._1_out_dense_activation = config["1_OUT_DENSE_ACTIVATION"]
         self._1_lr = config["1_LEARNING_RATE"]
-        self._pred_step = config["PRED_STEP"]
 
-    def create_deepgar_skew_v2(
+    def create_deepgar_model(
         self, weighting: LossWeighting = EQUAL_WEIGHTING, seed: int = 1234
     ) -> tuple[keras.Model, Any, Any]:
         """Create and compile the model.
@@ -169,7 +167,7 @@ class QuantileLossModel:
 
         y_real = keras.Input(shape=(1,))
         loss_f = ls_quantile_cdf(mu, sigma, skewness, tailweight, quantiles_layer, self._quantiles)
-        loss_q = multi_tilted_loss_v2(self._quantiles, y_real, quantiles_layer)
+        loss_q = multi_tilted_loss_shared_target(self._quantiles, y_real, quantiles_layer)
 
         model = keras.Model(inputs=[data_input, y_real], outputs=[mu, sigma, skewness, tailweight])
 
@@ -183,7 +181,7 @@ class QuantileLossModel:
         return model, weighted.alpha, weighted.beta
 
 
-def train_tfp_model_norm2(
+def train_deepgar_model(
     model_1: keras.Model,
     data: dict[str, Any],
     epochs: int,
@@ -206,7 +204,7 @@ def train_tfp_model_norm2(
     return y_train_dist, y_test_dist, history, model_1
 
 
-def model_deepgar_skew_v2(
+def model_deepgar_skew(
     param: dict[str, Any],
     data: dict[str, Any],
     epochs: int,
@@ -222,8 +220,8 @@ def model_deepgar_skew_v2(
     """
     early_stopper = keras.callbacks.EarlyStopping(monitor="val_loss", patience=patience)
     model_creator_1 = QuantileLossModel(param)
-    model_1, alpha, beta = model_creator_1.create_deepgar_skew_v2(weighting, seed)
-    return train_tfp_model_norm2(
+    model_1, alpha, beta = model_creator_1.create_deepgar_model(weighting, seed)
+    return train_deepgar_model(
         model_1,
         data,
         epochs,

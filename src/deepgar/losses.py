@@ -25,7 +25,9 @@ def ls_quantile_cdf(
     return K.mean(tf.math.squared_difference(q_val, q_est), axis=-1)
 
 
-def multi_tilted_loss_v2(quantiles: Sequence[float], y: tf.Tensor, f: tf.Tensor) -> tf.Tensor:
+def multi_tilted_loss_shared_target(
+    quantiles: Sequence[float], y: tf.Tensor, f: tf.Tensor
+) -> tf.Tensor:
     """Tilted loss for simultaneous quantile generation, with a crossing penalty.
 
     ``y`` holds a single target column that is compared against every quantile.
@@ -71,17 +73,3 @@ def tilted_loss(q: float, y: tf.Tensor, f: tf.Tensor) -> tf.Tensor:
     """Tilted (pinball) loss for a single quantile ``q``."""
     e = y - f
     return K.mean(K.maximum(q * e, (q - 1) * e), axis=-1)
-
-
-def loglike_skew_cost(
-    mu: tf.Tensor, sigma: tf.Tensor, skewness: tf.Tensor, y: tf.Tensor
-) -> tf.Tensor:
-    """Negative log-likelihood of ``y`` under a SinhArcsinh distribution."""
-    dist = tfp.distributions.SinhArcsinh(loc=mu, scale=sigma, skewness=skewness)
-    return tf.reduce_mean(-dist.log_prob(y))
-
-
-def loglike_cost(mu: tf.Tensor, sigma: tf.Tensor, y: tf.Tensor) -> tf.Tensor:
-    """Negative log-likelihood of ``y`` under a normal distribution."""
-    dist = tfp.distributions.Normal(loc=mu, scale=sigma)
-    return tf.reduce_mean(-dist.log_prob(y))

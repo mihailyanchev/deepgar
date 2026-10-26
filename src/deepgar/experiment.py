@@ -29,7 +29,6 @@ MODEL_PARAM: dict[str, Any] = {
     "SPLIT": 0.75,
     "WINDOW_SIZE": 1,
     "1_COMMON_LSTM_NUM": 128,
-    "2_COMMON_LSTM_NUM": 128,
     "1_IND_LSTM_NUM": 64,
     "1_IND_DENSE_NUM": 32,
     "1_IND_DENSE_ACTIVATION": "relu",
