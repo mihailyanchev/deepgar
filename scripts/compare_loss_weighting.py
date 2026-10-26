@@ -20,12 +20,8 @@ import tensorflow_probability as tfp
 import tf_keras as keras
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 
-from deepgar.models.deepgar_skew import (
-    EQUAL_WEIGHTING,
-    PAPER_DYNAMIC_WEIGHTING,
-    LossWeighting,
-    model_deepgar_skew,
-)
+from deepgar.models.deepgar_skew import model_deepgar_skew
+from deepgar.models.weighting import EQUAL_WEIGHTING, PAPER_DYNAMIC_WEIGHTING, LossWeighting
 from deepgar.paths import TABLES_DIR
 from deepgar.sampling import Scaler, import_data, sample_creation
 
