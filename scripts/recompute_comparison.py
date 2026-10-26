@@ -51,7 +51,7 @@ def run(country: str, seed: int) -> list[dict[str, Any]]:
     forecasts: dict[str, tuple[Forecast, int]] = {}
 
     keras.utils.set_random_seed(seed)
-    *_, model = deepgar_skew.model_deepgar_skew_v2(
+    *_, model = deepgar_skew.model_deepgar_skew(
         param, data, DEEPGAR_EPOCHS[country], DEEPGAR_PATIENCE, seed=seed, verbose=0
     )
     forecasts["DeepGaR"] = (deepgar_skew.forecast(model, data, scaler, N_SAMPLES, seed), 0)

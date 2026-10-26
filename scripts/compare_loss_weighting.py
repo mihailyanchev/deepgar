@@ -24,7 +24,7 @@ from deepgar.models.deepgar_skew import (
     EQUAL_WEIGHTING,
     PAPER_DYNAMIC_WEIGHTING,
     LossWeighting,
-    model_deepgar_skew_v2,
+    model_deepgar_skew,
 )
 from deepgar.paths import TABLES_DIR
 from deepgar.sampling import Scaler, import_data, sample_creation
@@ -34,7 +34,6 @@ PARAM: dict[str, Any] = {
     "SPLIT": 0.75,
     "WINDOW_SIZE": 1,
     "1_COMMON_LSTM_NUM": 128,
-    "2_COMMON_LSTM_NUM": 128,
     "1_IND_LSTM_NUM": 64,
     "1_IND_DENSE_NUM": 32,
     "1_IND_DENSE_ACTIVATION": "relu",
@@ -74,7 +73,7 @@ def run(country: str, scheme: str, weighting: LossWeighting, seed: int) -> dict[
     data, scaler = sample_creation(dataset, param, prediction_step=param["PRED_STEP"])
     param["NUM_FEATURES"] = data["TRAIN_DF"].shape[1]
 
-    _, _, history, model = model_deepgar_skew_v2(
+    _, _, history, model = model_deepgar_skew(
         param, data, EPOCHS[country], PATIENCE, weighting=weighting, seed=seed, verbose=0
     )
     epochs_trained = len(history.history["loss"])

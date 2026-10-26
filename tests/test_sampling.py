@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from deepgar.evaluation import to_percent
 from deepgar.sampling import (
     create_1st_step_y,
     create_windowed_1st_step,
     created_naive_forecast,
     df_split,
     import_data,
-    invert_normalize,
     normalize_data,
     sample_creation,
 )
@@ -38,7 +38,7 @@ def test_normalize_roundtrip(frame: pd.DataFrame) -> None:
     train, test = df_split(frame, 0.75)
     train_n, test_n, scaler = normalize_data(train, test)
     np.testing.assert_allclose(train_n.mean(), 0, atol=1e-12)
-    np.testing.assert_allclose(invert_normalize(scaler, test_n["GDP"]), test["GDP"])
+    np.testing.assert_allclose(to_percent(test_n["GDP"], scaler) / 100, test["GDP"])
 
 
 def test_windowing_targets_next_step() -> None:

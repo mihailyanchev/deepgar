@@ -6,7 +6,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
-from sklearn.preprocessing import MinMaxScaler
 
 from deepgar.paths import PROCESSED_DATA_DIR
 
@@ -27,14 +26,6 @@ def created_naive_forecast(
             _y = dataset[end - 1 : end + prediction_step - 1]
         y.append(_y)
     return np.array(y)
-
-
-def import_latest_data() -> pd.DataFrame:
-    """Load the most recently created csv file in the processed data folder."""
-    list_of_files = PROCESSED_DATA_DIR.glob("*.csv")
-    latest_file = max(list_of_files, key=lambda p: p.stat().st_ctime)
-    print(latest_file)
-    return pd.read_csv(latest_file, index_col=0)
 
 
 def import_data(name: str) -> pd.DataFrame:
@@ -67,31 +58,6 @@ def normalize_data(
     test_df = (test_df - train_mean) / train_std
 
     return train_df, test_df, scaler
-
-
-def invert_normalize(scaler: Scaler, y: Any) -> Any:
-    """Undo ``normalize_data`` for the target (first) column."""
-    mean = scaler["mean"].iloc[0]
-    std = scaler["std"].iloc[0]
-    return y * std + mean
-
-
-def scale(
-    train_df: pd.DataFrame, test_df: pd.DataFrame
-) -> tuple[MinMaxScaler, NDArray[Any], NDArray[Any]]:
-    """Scale both sets to [-1, 1] using a scaler fitted on the train set."""
-    scaler = MinMaxScaler(feature_range=(-1, 1))
-    scaler = scaler.fit(train_df)
-    train_scaled = scaler.transform(train_df)
-    test_scaled = scaler.transform(test_df)
-    return scaler, train_scaled, test_scaled
-
-
-def invert_scale(scaler: MinMaxScaler, X: NDArray[Any], y: NDArray[Any]) -> NDArray[Any]:
-    """Inverse scaling for a forecasted value."""
-    array = np.concatenate([y, X], axis=1)
-    inverted: NDArray[Any] = scaler.inverse_transform(array)
-    return inverted[:, 0]
 
 
 def create_windowed_1st_step(
