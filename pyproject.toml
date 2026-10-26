@@ -19,6 +19,7 @@ dependencies = [
     "tensorflow-probability",
     # Keras 2 for TF >= 2.16. Drop once the models are migrated to Keras 3.
     "tf-keras",
+    "torch",
 ]
 
 [project.scripts]
@@ -48,6 +49,16 @@ build-backend = "uv_build"
 
 [tool.uv]
 default-groups = ["dev", "notebooks"]
+
+# CPU-only PyTorch wheels on Linux; the default PyPI wheels bundle CUDA (several GB).
+# macOS wheels on PyPI are already CPU/MPS-only.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 # --------------------------------------------------------------------------- ruff
 
@@ -90,6 +101,8 @@ python_version = "3.12"
 strict = true
 files = ["src", "tests", "scripts"]
 mypy_path = "src"
+# Some torch.Tensor methods (backward, split) are not annotated upstream.
+untyped_calls_exclude = ["torch"]
 
 [[tool.mypy.overrides]]
 # These libraries ship no type information.
